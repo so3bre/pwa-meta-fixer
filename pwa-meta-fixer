@@ -1,0 +1,61 @@
+#!/bin/bash
+# pwa-meta-fixer | MIT License
+# GitHub: https://github.com/so3bre/pwa-meta-fixer
+# Adds missing 'Comment' fields to Chromium-based PWA desktop entries.
+
+# Configuration
+APPS_DIR="$HOME/.local/share/applications"
+FILE_PATTERN="*chrome-*-*.desktop"
+
+# UI Colors
+RED='\033[91m'
+GREEN='\033[92m'
+NC='\033[0m'
+
+# Check if the applications directory exists
+if [ ! -d "$APPS_DIR" ]; then
+    echo -e "${RED}[!] Error:${NC} Directory $APPS_DIR not found."
+    exit 1
+fi
+
+# Function to process a single desktop file
+apply_fix() {
+    local file="$1"
+
+    # Get the app name from the first 'Name=' occurrence
+    local name_line=$(grep -m 1 "^Name=" "$file")
+    local name=$(echo "$name_line" | cut -d'=' -f2)
+
+    # Safety checks
+    if [ -z "$name" ]; then return 0; fi
+    if grep -q "^Comment=" "$file"; then return 0; fi
+
+    # Insert the Comment line right after the Name line
+    sed -i "/^Name=$name/a Comment=Web application for $name" "$file"
+    echo -e "${GREEN}[+] Fixed:${NC} $name"
+}
+
+# --- Main Logic ---
+
+if [ ! -z "$1" ]; then
+    # Mode A: Target a specific application by name
+    target="$1"
+    found=false
+    for f in "$APPS_DIR"/$FILE_PATTERN; do
+        [ -e "$f" ] || continue
+        if grep -qi "Name=.*$target" "$f"; then
+            apply_fix "$f"
+            found=true
+        fi
+    done
+    [ "$found" = false ] && echo -e "${RED}[!] No PWA found matching:${NC} $target"
+
+else
+    # Mode B: Automated scan for all matching PWAs
+    echo "Scanning PWA desktop entries..."
+    for f in "$APPS_DIR"/$FILE_PATTERN; do
+        [ -e "$f" ] || continue
+        apply_fix "$f"
+    done
+    echo "Done."
+fi
